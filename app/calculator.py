@@ -5,14 +5,14 @@ Main Calculator class with observer pattern implementation.
 from pathlib import Path
 from typing import List, Optional
 from abc import ABC, abstractmethod
-from calculation import Calculation
-from operations import OperationFactory
-from history import HistoryManager
-from calculator_momento import CalculatorMemento, MementoCaretaker
-from input_validator import InputValidator
-from calculator_config import config
-from logger import Logger
-from exceptions import CalculatorError
+from app.calculation import Calculation
+from app.operations import OperationFactory
+from app.history import HistoryManager
+from app.calculator_momento import CalculatorMemento, MementoCaretaker
+from app.input_validator import InputValidator
+from app.calculator_config import config
+from app.logger import Logger
+from app.exceptions import CalculatorError
 import pandas as pd
 
 class CalculatorObserver(ABC):
