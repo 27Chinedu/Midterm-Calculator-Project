@@ -37,6 +37,15 @@ class SubtractOperation(Operation):
     def get_symbol(self) -> str:
         return "-"
 
+class MultiplyOperation(Operation):
+    """Multiplication operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        return a * b
+    
+    def get_symbol(self) -> str:
+        return "*"
+
 
 
 
