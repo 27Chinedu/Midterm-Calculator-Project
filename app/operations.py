@@ -57,5 +57,18 @@ class DivideOperation(Operation):
     def get_symbol(self) -> str:
         return "/"
 
+class PowerOperation(Operation):
+    """Power operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        try:
+            return a ** b
+        except (OverflowError, ValueError) as e:
+            raise OperationError(f"Power operation failed: {e}")
+    
+    def get_symbol(self) -> str:
+        return "^"
+
+
 
 
