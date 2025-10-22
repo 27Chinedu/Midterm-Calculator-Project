@@ -5,7 +5,7 @@ Configuration management for the calculator application.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from .exceptions import ConfigurationError
+from app.exceptions import ConfigurationError
 
 class CalculatorConfig:
     """Manages calculator configuration settings."""

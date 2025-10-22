@@ -6,10 +6,10 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
-from .calculation import Calculation
-from .calculator_config import config
-from .exceptions import HistoryError, FileOperationError
-from .logger import Logger
+from app.calculation import Calculation
+from app.calculator_config import config
+from app.exceptions import HistoryError, FileOperationError
+from app.logger import Logger
 
 class HistoryManager:
     """Manages calculation history with persistence."""

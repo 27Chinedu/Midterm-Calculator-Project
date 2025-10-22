@@ -3,7 +3,7 @@ Memento pattern implementation for undo/redo functionality.
 """
 
 from typing import List, Optional
-from .calculation import Calculation
+from app.calculation import Calculation
 
 class CalculatorMemento:
     """Memento class to store calculator state."""
