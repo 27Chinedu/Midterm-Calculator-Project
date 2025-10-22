@@ -127,5 +127,33 @@ class AbsoluteDifferenceOperation(Operation):
     def get_symbol(self) -> str:
         return "|a-b|"
 
+class OperationFactory:
+    """Factory class for creating operation instances."""
+    
+    _operations: Dict[str, Type[Operation]] = {
+        'add': AddOperation,
+        'subtract': SubtractOperation,
+        'multiply': MultiplyOperation,
+        'divide': DivideOperation,
+        'power': PowerOperation,
+        'root': RootOperation,
+        'modulus': ModulusOperation,
+        'int_divide': IntegerDivideOperation,
+        'percent': PercentageOperation,
+        'abs_diff': AbsoluteDifferenceOperation
+    }
+    
+    @classmethod
+    def create_operation(cls, operation_name: str) -> Operation:
+        """Create an operation instance by name."""
+        operation_class = cls._operations.get(operation_name.lower())
+        if not operation_class:
+            raise OperationError(f"Unknown operation: {operation_name}")
+        return operation_class()
+    
+    @classmethod
+    def get_available_operations(cls) -> list:
+        """Get list of available operation names."""
+        return list(cls._operations.keys())
 
 
