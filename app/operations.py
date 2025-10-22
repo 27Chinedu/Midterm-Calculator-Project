@@ -107,5 +107,16 @@ class IntegerDivideOperation(Operation):
     def get_symbol(self) -> str:
         return "//"
 
+class PercentageOperation(Operation):
+    """Percentage calculation (a/b * 100)."""
+    
+    def execute(self, a: float, b: float) -> float:
+        if b == 0:
+            raise DivisionByZeroError("Cannot calculate percentage with zero base")
+        return (a / b) * 100
+    
+    def get_symbol(self) -> str:
+        return "%%"
+
 
 
