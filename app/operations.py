@@ -69,6 +69,22 @@ class PowerOperation(Operation):
     def get_symbol(self) -> str:
         return "^"
 
+class RootOperation(Operation):
+    """Root operation (a^(1/b))."""
+    
+    def execute(self, a: float, b: float) -> float:
+        if b == 0:
+            raise DivisionByZeroError("Cannot calculate root with zero index")
+        try:
+            if a < 0 and b % 2 == 0:
+                raise OperationError("Cannot calculate even root of negative number")
+            return a ** (1/b)
+        except (OverflowError, ValueError) as e:
+            raise OperationError(f"Root operation failed: {e}")
+    
+    def get_symbol(self) -> str:
+        return "√"
+
 
 
 
