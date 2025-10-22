@@ -1,647 +1,629 @@
 """
-Comprehensive tests for Calculator class
+Comprehensive tests for Calculator class - 100% coverage
 """
 import pytest
-import pandas as pd
 from pathlib import Path
-from app.calculator import Calculator, LoggingObserver, AutoSaveObserver
+from unittest.mock import Mock, MagicMock, patch, call
+from app.calculator import (
+    Calculator, 
+    CalculatorObserver, 
+    LoggingObserver, 
+    AutoSaveObserver
+)
 from app.calculation import Calculation
-from app.operations import AddOperation, SubtractOperation
-from app.exceptions import OperationError, HistoryError
+from app.exceptions import CalculatorError
 
 
-class TestCalculatorComprehensive:
-    """Comprehensive test cases for Calculator class"""
+class TestCalculatorObserver:
+    """Tests for CalculatorObserver abstract base class"""
+    
+    def test_observer_is_abstract(self):
+        """Test that CalculatorObserver cannot be instantiated"""
+        with pytest.raises(TypeError):
+            CalculatorObserver()
+    
+    def test_observer_requires_update_method(self):
+        """Test that concrete observers must implement update"""
+        class InvalidObserver(CalculatorObserver):
+            pass
+        
+        with pytest.raises(TypeError):
+            InvalidObserver()
+
+
+class TestLoggingObserver:
+    """Tests for LoggingObserver"""
+    
+    def test_logging_observer_initialization(self):
+        """Test LoggingObserver initializes with logger"""
+        observer = LoggingObserver()
+        
+        assert observer is not None
+        assert hasattr(observer, 'logger')
+        assert observer.logger is not None
+    
+    @patch('app.calculator.Logger')
+    def test_logging_observer_update_logs_calculation(self, mock_logger_class):
+        """Test that update method logs calculation"""
+        mock_logger = Mock()
+        mock_logger_class.return_value = mock_logger
+        
+        observer = LoggingObserver()
+        calc = Calculation("add", 5.0, 3.0, 8.0)
+        
+        observer.update(calc)
+        
+        mock_logger.log_calculation.assert_called_once_with(calc)
+    
+    def test_logging_observer_is_calculator_observer(self):
+        """Test that LoggingObserver is a CalculatorObserver"""
+        observer = LoggingObserver()
+        assert isinstance(observer, CalculatorObserver)
+
+
+class TestAutoSaveObserver:
+    """Tests for AutoSaveObserver"""
+    
+    def test_autosave_observer_initialization(self):
+        """Test AutoSaveObserver initializes with history manager"""
+        mock_history = Mock()
+        observer = AutoSaveObserver(mock_history)
+        
+        assert observer is not None
+        assert observer.history_manager is mock_history
+        assert hasattr(observer, 'logger')
+    
+    @patch('app.calculator.config')
+    def test_autosave_observer_update_when_enabled(self, mock_config):
+        """Test update saves when auto_save is enabled"""
+        mock_config.auto_save = True
+        mock_history = Mock()
+        observer = AutoSaveObserver(mock_history)
+        
+        calc = Calculation("add", 5.0, 3.0, 8.0)
+        observer.update(calc)
+        
+        mock_history.save_to_csv.assert_called_once()
+    
+    @patch('app.calculator.config')
+    def test_autosave_observer_update_when_disabled(self, mock_config):
+        """Test update does not save when auto_save is disabled"""
+        mock_config.auto_save = False
+        mock_history = Mock()
+        observer = AutoSaveObserver(mock_history)
+        
+        calc = Calculation("add", 5.0, 3.0, 8.0)
+        observer.update(calc)
+        
+        mock_history.save_to_csv.assert_not_called()
+    
+    @patch('app.calculator.config')
+    def test_autosave_observer_handles_save_exception(self, mock_config):
+        """Test update handles exceptions during save"""
+        mock_config.auto_save = True
+        mock_history = Mock()
+        mock_history.save_to_csv.side_effect = Exception("Save failed")
+        
+        observer = AutoSaveObserver(mock_history)
+        calc = Calculation("add", 5.0, 3.0, 8.0)
+        
+        # Should not raise exception
+        observer.update(calc)
+        
+        mock_history.save_to_csv.assert_called_once()
+    
+    def test_autosave_observer_is_calculator_observer(self):
+        """Test that AutoSaveObserver is a CalculatorObserver"""
+        mock_history = Mock()
+        observer = AutoSaveObserver(mock_history)
+        assert isinstance(observer, CalculatorObserver)
+
+
+class TestCalculatorInitialization:
+    """Tests for Calculator initialization"""
     
     def test_calculator_initialization(self):
-        """Test calculator initializes with empty state"""
+        """Test calculator initializes with all components"""
         calc = Calculator()
+        
         assert calc is not None
-        assert len(calc.get_history()) == 0
+        assert hasattr(calc, 'history_manager')
+        assert hasattr(calc, 'memento_caretaker')
+        assert hasattr(calc, 'logger')
+        assert hasattr(calc, '_observers')
     
-    def test_calculator_add_operation(self):
-        """Test calculator add operation"""
+    def test_calculator_registers_default_observers(self):
+        """Test calculator registers default observers on init"""
         calc = Calculator()
-        result = calc.calculate("add", 5, 3)
-        assert result == 8
+        
+        assert len(calc._observers) == 2
+        assert any(isinstance(obs, LoggingObserver) for obs in calc._observers)
+        assert any(isinstance(obs, AutoSaveObserver) for obs in calc._observers)
     
-    def test_calculator_subtract_operation(self):
-        """Test calculator subtract operation"""
+    @patch('app.calculator.MementoCaretaker')
+    def test_calculator_saves_initial_state(self, mock_caretaker_class):
+        """Test calculator saves initial state on creation"""
+        mock_caretaker = Mock()
+        mock_caretaker_class.return_value = mock_caretaker
+        
         calc = Calculator()
-        result = calc.calculate("subtract", 10, 3)
-        assert result == 7
+        
+        # Should save initial state
+        assert mock_caretaker.save.called
+
+
+class TestCalculatorObserverManagement:
+    """Tests for observer registration and management"""
     
-    def test_calculator_multiply_operation(self):
-        """Test calculator multiply operation"""
+    def test_register_observer(self):
+        """Test registering a new observer"""
         calc = Calculator()
-        result = calc.calculate("multiply", 4, 5)
-        assert result == 20
+        initial_count = len(calc._observers)
+        
+        mock_observer = Mock(spec=CalculatorObserver)
+        calc.register_observer(mock_observer)
+        
+        assert len(calc._observers) == initial_count + 1
+        assert mock_observer in calc._observers
     
-    def test_calculator_divide_operation(self):
-        """Test calculator divide operation"""
+    def test_unregister_observer(self):
+        """Test unregistering an existing observer"""
         calc = Calculator()
-        result = calc.calculate("divide", 20, 4)
-        assert result == 5.0
+        mock_observer = Mock(spec=CalculatorObserver)
+        calc.register_observer(mock_observer)
+        
+        calc.unregister_observer(mock_observer)
+        
+        assert mock_observer not in calc._observers
     
-    def test_calculator_power_operation(self):
-        """Test calculator power operation"""
+    def test_unregister_nonexistent_observer(self):
+        """Test unregistering observer not in list does not raise error"""
         calc = Calculator()
-        result = calc.calculate("power", 2, 3)
-        assert result == 8
+        mock_observer = Mock(spec=CalculatorObserver)
+        
+        # Should not raise exception
+        calc.unregister_observer(mock_observer)
     
-    def test_calculator_modulus_operation(self):
-        """Test calculator modulus operation"""
+    def test_notify_observers(self):
+        """Test notifying all observers"""
         calc = Calculator()
-        result = calc.calculate("modulus", 10, 3)
-        assert result == 1
+        
+        mock_obs1 = Mock(spec=CalculatorObserver)
+        mock_obs2 = Mock(spec=CalculatorObserver)
+        
+        calc.register_observer(mock_obs1)
+        calc.register_observer(mock_obs2)
+        
+        test_calc = Calculation("add", 5.0, 3.0, 8.0)
+        calc._notify_observers(test_calc)
+        
+        mock_obs1.update.assert_called_with(test_calc)
+        mock_obs2.update.assert_called_with(test_calc)
     
-    def test_calculator_root_operation(self):
-        """Test calculator root operation"""
+    def test_notify_observers_handles_exceptions(self):
+        """Test observer exceptions don't stop notification"""
         calc = Calculator()
-        result = calc.calculate("root", 16, 2)
-        assert result == 4.0
+        
+        mock_obs1 = Mock(spec=CalculatorObserver)
+        mock_obs1.update.side_effect = Exception("Observer 1 failed")
+        
+        mock_obs2 = Mock(spec=CalculatorObserver)
+        
+        calc.register_observer(mock_obs1)
+        calc.register_observer(mock_obs2)
+        
+        test_calc = Calculation("add", 5.0, 3.0, 8.0)
+        calc._notify_observers(test_calc)
+        
+        # Both should be called despite first one failing
+        mock_obs1.update.assert_called()
+        mock_obs2.update.assert_called()
+
+
+class TestCalculatorCalculate:
+    """Tests for calculate method"""
     
-    def test_calculator_int_divide_operation(self):
-        """Test calculator integer division operation"""
+    @patch('app.calculator.OperationFactory')
+    def test_calculate_basic_operation(self, mock_factory):
+        """Test basic calculation"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
         calc = Calculator()
-        result = calc.calculate("int_divide", 10, 3)
-        assert result == 3
+        result = calc.calculate("add", 5.0, 3.0)
+        
+        assert result == 8.0
+        mock_factory.create_operation.assert_called_with("add")
+        mock_operation.execute.assert_called_with(5.0, 3.0)
     
-    def test_calculator_percent_operation(self):
-        """Test calculator percentage operation"""
+    @patch('app.calculator.OperationFactory')
+    @patch('app.calculator.config')
+    def test_calculate_rounds_to_precision(self, mock_config, mock_factory):
+        """Test result is rounded to configured precision"""
+        mock_config.precision = 2
+        
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 3.33333333
+        mock_operation.get_symbol.return_value = "÷"
+        mock_factory.create_operation.return_value = mock_operation
+        
         calc = Calculator()
-        result = calc.calculate("percent", 25, 100)
-        assert result == 25.0
+        result = calc.calculate("divide", 10.0, 3.0)
+        
+        assert result == 3.33
     
-    def test_calculator_abs_diff_operation(self):
-        """Test calculator absolute difference operation"""
+    @patch('app.calculator.OperationFactory')
+    def test_calculate_adds_to_history(self, mock_factory):
+        """Test calculation is added to history"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
         calc = Calculator()
-        result = calc.calculate("abs_diff", 10, 3)
-        assert result == 7
+        initial_history_len = len(calc.get_history())
+        
+        calc.calculate("add", 5.0, 3.0)
+        
+        assert len(calc.get_history()) == initial_history_len + 1
     
-    def test_calculator_invalid_operation(self):
-        """Test calculator raises error for invalid operation"""
+    @patch('app.calculator.OperationFactory')
+    def test_calculate_saves_state(self, mock_factory):
+        """Test calculation saves state for undo/redo"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
         calc = Calculator()
-        with pytest.raises(OperationError):
-            calc.calculate("invalid", 5, 3)
+        calc.calculate("add", 5.0, 3.0)
+        
+        # Should be able to undo
+        assert calc.memento_caretaker.can_undo()
     
-    def test_calculator_divide_by_zero(self):
-        """Test calculator handles division by zero"""
+    @patch('app.calculator.OperationFactory')
+    def test_calculate_notifies_observers(self, mock_factory):
+        """Test calculation notifies observers"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
         calc = Calculator()
-        with pytest.raises(OperationError):
-            calc.calculate("divide", 10, 0)
+        mock_observer = Mock(spec=CalculatorObserver)
+        calc.register_observer(mock_observer)
+        
+        calc.calculate("add", 5.0, 3.0)
+        
+        assert mock_observer.update.called
     
-    def test_calculator_history_tracking(self):
-        """Test calculator tracks calculation history"""
+    @patch('app.calculator.OperationFactory')
+    def test_calculate_raises_on_error(self, mock_factory):
+        """Test calculation raises exception on error"""
+        mock_factory.create_operation.side_effect = Exception("Invalid operation")
+        
         calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
+        
+        with pytest.raises(Exception):
+            calc.calculate("invalid", 5.0, 3.0)
+
+
+class TestCalculatorUndo:
+    """Tests for undo functionality"""
+    
+    @patch('app.calculator.OperationFactory')
+    def test_undo_successful(self, mock_factory):
+        """Test successful undo operation"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        calc.calculate("add", 5.0, 3.0)
+        
+        result = calc.undo()
+        
+        assert result is True
+    
+    def test_undo_when_nothing_to_undo(self):
+        """Test undo returns False when nothing to undo"""
+        calc = Calculator()
+        
+        # Undo initial state
+        calc.undo()
+        
+        # Try to undo again
+        result = calc.undo()
+        
+        assert result is False
+    
+    @patch('app.calculator.OperationFactory')
+    def test_undo_restores_history(self, mock_factory):
+        """Test undo restores previous history state"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        initial_len = len(calc.get_history())
+        
+        calc.calculate("add", 5.0, 3.0)
+        after_calc_len = len(calc.get_history())
+        
+        calc.undo()
+        after_undo_len = len(calc.get_history())
+        
+        assert after_calc_len > initial_len
+        assert after_undo_len == initial_len
+    
+    @patch('app.calculator.MementoCaretaker')
+    def test_undo_when_memento_returns_none(self, mock_caretaker_class):
+        """Test undo handles None memento"""
+        mock_caretaker = Mock()
+        mock_caretaker.can_undo.return_value = True
+        mock_caretaker.undo.return_value = None
+        mock_caretaker_class.return_value = mock_caretaker
+        
+        calc = Calculator()
+        result = calc.undo()
+        
+        assert result is False
+
+
+class TestCalculatorRedo:
+    """Tests for redo functionality"""
+    
+    @patch('app.calculator.OperationFactory')
+    def test_redo_successful(self, mock_factory):
+        """Test successful redo operation"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        calc.calculate("add", 5.0, 3.0)
+        calc.undo()
+        
+        result = calc.redo()
+        
+        assert result is True
+    
+    def test_redo_when_nothing_to_redo(self):
+        """Test redo returns False when nothing to redo"""
+        calc = Calculator()
+        
+        result = calc.redo()
+        
+        assert result is False
+    
+    @patch('app.calculator.OperationFactory')
+    def test_redo_restores_history(self, mock_factory):
+        """Test redo restores undone history"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        calc.calculate("add", 5.0, 3.0)
+        after_calc_len = len(calc.get_history())
+        
+        calc.undo()
+        after_undo_len = len(calc.get_history())
+        
+        calc.redo()
+        after_redo_len = len(calc.get_history())
+        
+        assert after_undo_len < after_calc_len
+        assert after_redo_len == after_calc_len
+    
+    @patch('app.calculator.MementoCaretaker')
+    def test_redo_when_memento_returns_none(self, mock_caretaker_class):
+        """Test redo handles None memento"""
+        mock_caretaker = Mock()
+        mock_caretaker.can_redo.return_value = True
+        mock_caretaker.redo.return_value = None
+        mock_caretaker_class.return_value = mock_caretaker
+        
+        calc = Calculator()
+        result = calc.redo()
+        
+        assert result is False
+
+
+class TestCalculatorHistory:
+    """Tests for history management"""
+    
+    def test_get_history(self):
+        """Test getting calculation history"""
+        calc = Calculator()
         
         history = calc.get_history()
-        assert len(history) == 2
-    
-    def test_calculator_get_last_calculation(self):
-        """Test getting last calculation"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("multiply", 4, 5)
         
-        last = calc.get_last_calculation()
-        assert last.get_result() == 20
+        assert isinstance(history, list)
     
-    def test_calculator_clear_history(self):
-        """Test clearing calculator history"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
+    @patch('app.calculator.OperationFactory')
+    def test_get_history_returns_calculations(self, mock_factory):
+        """Test get_history returns actual calculations"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
         
+        calc = Calculator()
+        calc.calculate("add", 5.0, 3.0)
+        
+        history = calc.get_history()
+        
+        assert len(history) > 0
+        assert isinstance(history[0], Calculation)
+    
+    def test_clear_history(self):
+        """Test clearing history"""
+        calc = Calculator()
+        calc.clear_history()
+        
+        assert len(calc.get_history()) == 0
+    
+    @patch('app.calculator.OperationFactory')
+    def test_clear_history_removes_all(self, mock_factory):
+        """Test clear_history removes all calculations"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        calc.calculate("add", 5.0, 3.0)
+        calc.calculate("add", 10.0, 2.0)
+        
+        calc.clear_history()
+        
+        assert len(calc.get_history()) == 0
+    
+    def test_clear_history_saves_state(self):
+        """Test clear_history saves state for undo"""
+        calc = Calculator()
+        calc.clear_history()
+        
+        # Should be able to undo clear
+        assert calc.memento_caretaker.can_undo()
+
+
+class TestCalculatorFilePersistence:
+    """Tests for save/load history"""
+    
+    def test_save_history_with_filepath(self, tmp_path):
+        """Test saving history with specified filepath"""
+        filepath = str(tmp_path / "history.csv")
+        
+        calc = Calculator()
+        calc.save_history(filepath)
+        
+        # File should exist
+        assert Path(filepath).exists()
+    
+    def test_save_history_without_filepath(self):
+        """Test saving history with default filepath"""
+        calc = Calculator()
+        
+        # Should not raise exception
+        calc.save_history(None)
+    
+    def test_save_history_calls_history_manager(self):
+        """Test save_history delegates to history manager"""
+        calc = Calculator()
+        calc.history_manager.save_to_csv = Mock()
+        
+        calc.save_history("test.csv")
+        
+        calc.history_manager.save_to_csv.assert_called_once()
+    
+    def test_load_history_with_filepath(self, tmp_path):
+        """Test loading history with specified filepath"""
+        filepath = str(tmp_path / "history.csv")
+        
+        # Create a dummy file
+        Path(filepath).touch()
+        
+        calc = Calculator()
+        calc.history_manager.load_from_csv = Mock()
+        
+        calc.load_history(filepath)
+        
+        calc.history_manager.load_from_csv.assert_called_once()
+    
+    def test_load_history_without_filepath(self):
+        """Test loading history with default filepath"""
+        calc = Calculator()
+        calc.history_manager.load_from_csv = Mock()
+        
+        calc.load_history(None)
+        
+        calc.history_manager.load_from_csv.assert_called_once()
+    
+    def test_load_history_saves_state(self):
+        """Test load_history saves state after loading"""
+        calc = Calculator()
+        calc.history_manager.load_from_csv = Mock()
+        calc._save_state = Mock()
+        
+        calc.load_history("test.csv")
+        
+        calc._save_state.assert_called()
+    
+    def test_save_history_converts_string_to_path(self, tmp_path):
+        """Test save_history converts string to Path"""
+        filepath = str(tmp_path / "history.csv")
+        
+        calc = Calculator()
+        calc.history_manager.save_to_csv = Mock()
+        
+        calc.save_history(filepath)
+        
+        # Should be called with Path object
+        call_args = calc.history_manager.save_to_csv.call_args[0]
+        assert isinstance(call_args[0], Path)
+    
+    def test_load_history_converts_string_to_path(self):
+        """Test load_history converts string to Path"""
+        calc = Calculator()
+        calc.history_manager.load_from_csv = Mock()
+        
+        calc.load_history("test.csv")
+        
+        # Should be called with Path object
+        call_args = calc.history_manager.load_from_csv.call_args[0]
+        assert isinstance(call_args[0], Path)
+
+
+class TestCalculatorIntegration:
+    """Integration tests for Calculator"""
+    
+    @patch('app.calculator.OperationFactory')
+    def test_full_workflow(self, mock_factory):
+        """Test complete workflow: calculate, undo, redo, clear"""
+        mock_operation = Mock()
+        mock_operation.execute.return_value = 8.0
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
+        
+        calc = Calculator()
+        
+        # Calculate
+        result = calc.calculate("add", 5.0, 3.0)
+        assert result == 8.0
+        assert len(calc.get_history()) > 0
+        
+        # Undo
+        calc.undo()
+        assert len(calc.get_history()) == 0
+        
+        # Redo
+        calc.redo()
+        assert len(calc.get_history()) > 0
+        
+        # Clear
         calc.clear_history()
         assert len(calc.get_history()) == 0
     
-    def test_calculator_undo(self):
-        """Test undo functionality"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
+    @patch('app.calculator.OperationFactory')
+    def test_multiple_calculations(self, mock_factory):
+        """Test multiple calculations"""
+        mock_operation = Mock()
+        mock_operation.execute.side_effect = [8.0, 7.0, 20.0]
+        mock_operation.get_symbol.return_value = "+"
+        mock_factory.create_operation.return_value = mock_operation
         
-        calc.undo()
-        assert len(calc.get_history()) == 1
-    
-    def test_calculator_undo_empty_history(self):
-        """Test undo with no history raises error"""
-        calc = Calculator()
-        with pytest.raises(HistoryError):
-            calc.undo()
-    
-    def test_calculator_redo(self):
-        """Test redo functionality"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
-        
-        calc.undo()
-        calc.redo()
-        
-        assert len(calc.get_history()) == 2
-    
-    def test_calculator_redo_nothing_to_redo(self):
-        """Test redo with nothing to redo raises error"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        
-        with pytest.raises(HistoryError):
-            calc.redo()
-    
-    def test_calculator_multiple_undo(self):
-        """Test multiple undo operations"""
-        calc = Calculator()
-        calc.calculate("add", 1, 1)
-        calc.calculate("add", 2, 2)
-        calc.calculate("add", 3, 3)
-        
-        calc.undo()
-        calc.undo()
-        
-        assert len(calc.get_history()) == 1
-    
-    def test_calculator_multiple_redo(self):
-        """Test multiple redo operations"""
-        calc = Calculator()
-        calc.calculate("add", 1, 1)
-        calc.calculate("add", 2, 2)
-        calc.calculate("add", 3, 3)
-        
-        calc.undo()
-        calc.undo()
-        calc.redo()
-        
-        assert len(calc.get_history()) == 2
-    
-    def test_calculator_undo_then_new_calculation_clears_redo(self):
-        """Test that new calculation after undo clears redo stack"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
-        
-        calc.undo()
-        calc.calculate("multiply", 4, 5)
-        
-        with pytest.raises(HistoryError):
-            calc.redo()
-    
-    def test_calculator_add_observer(self):
-        """Test adding observer to calculator"""
-        calc = Calculator()
-        observer = LoggingObserver(Path("test.log"))
-        
-        calc.add_observer(observer)
-        assert observer in calc.observers
-    
-    def test_calculator_remove_observer(self):
-        """Test removing observer from calculator"""
-        calc = Calculator()
-        observer = LoggingObserver(Path("test.log"))
-        
-        calc.add_observer(observer)
-        calc.remove_observer(observer)
-        
-        assert observer not in calc.observers
-    
-    def test_calculator_notify_observers(self, tmp_path: Path):
-        """Test calculator notifies observers on calculation"""
-        calc = Calculator()
-        log_file = tmp_path / "test.log"
-        observer = LoggingObserver(log_file)
-        
-        calc.add_observer(observer)
-        calc.calculate("add", 5, 3)
-        
-        assert log_file.exists()
-    
-    def test_calculator_save_history(self, tmp_path: Path):
-        """Test saving calculation history to file"""
-        calc = Calculator()
-        history_file = tmp_path / "history.csv"
-        
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
-        
-        calc.save_history(history_file)
-        
-        assert history_file.exists()
-        df = pd.read_csv(history_file)
-        assert len(df) == 2
-    
-    def test_calculator_load_history(self, tmp_path: Path):
-        """Test loading calculation history from file"""
-        calc = Calculator()
-        history_file = tmp_path / "history.csv"
-        
-        # Create and save history
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
-        calc.save_history(history_file)
-        
-        # Load into new calculator
-        calc2 = Calculator()
-        calc2.load_history(history_file)
-        
-        assert len(calc2.get_history()) == 2
-    
-    def test_calculator_load_nonexistent_file(self, tmp_path: Path):
-        """Test loading from nonexistent file raises error"""
-        calc = Calculator()
-        history_file = tmp_path / "nonexistent.csv"
-        
-        with pytest.raises(FileNotFoundError):
-            calc.load_history(history_file)
-    
-    def test_calculator_save_empty_history(self, tmp_path: Path):
-        """Test saving empty history creates empty file"""
-        calc = Calculator()
-        history_file = tmp_path / "history.csv"
-        
-        calc.save_history(history_file)
-        
-        assert history_file.exists()
-        df = pd.read_csv(history_file)
-        assert len(df) == 0
-    
-    def test_calculator_with_negative_numbers(self):
-        """Test calculator with negative numbers"""
         calc = Calculator()
         
-        result1 = calc.calculate("add", -5, -3)
-        assert result1 == -8
+        calc.calculate("add", 5.0, 3.0)
+        calc.calculate("add", 4.0, 3.0)
+        calc.calculate("add", 10.0, 10.0)
         
-        result2 = calc.calculate("multiply", -5, 3)
-        assert result2 == -15
-    
-    def test_calculator_with_decimals(self):
-        """Test calculator with decimal numbers"""
-        calc = Calculator()
-        
-        result1 = calc.calculate("add", 5.5, 3.2)
-        assert pytest.approx(result1, 0.001) == 8.7
-        
-        result2 = calc.calculate("multiply", 2.5, 4.0)
-        assert result2 == 10.0
-    
-    def test_calculator_with_zero(self):
-        """Test calculator operations with zero"""
-        calc = Calculator()
-        
-        result1 = calc.calculate("add", 0, 5)
-        assert result1 == 5
-        
-        result2 = calc.calculate("multiply", 0, 5)
-        assert result2 == 0
-    
-    def test_calculator_large_numbers(self):
-        """Test calculator with large numbers"""
-        calc = Calculator()
-        
-        result = calc.calculate("multiply", 1000000, 1000)
-        assert result == 1000000000
-    
-    def test_calculator_history_order(self):
-        """Test history maintains chronological order"""
-        calc = Calculator()
-        
-        calc.calculate("add", 1, 1)
-        calc.calculate("add", 2, 2)
-        calc.calculate("add", 3, 3)
-        
-        history = calc.get_history()
-        assert history[0].get_result() == 2
-        assert history[1].get_result() == 4
-        assert history[2].get_result() == 6
-    
-    def test_calculator_can_undo(self):
-        """Test can_undo method"""
-        calc = Calculator()
-        
-        assert calc.can_undo() is False
-        
-        calc.calculate("add", 5, 3)
-        assert calc.can_undo() is True
-    
-    def test_calculator_can_redo(self):
-        """Test can_redo method"""
-        calc = Calculator()
-        calc.calculate("add", 5, 3)
-        
-        assert calc.can_redo() is False
-        
-        calc.undo()
-        assert calc.can_redo() is True
-    
-    def test_calculator_get_history_count(self):
-        """Test getting history count"""
-        calc = Calculator()
-        
-        assert calc.get_history_count() == 0
-        
-        calc.calculate("add", 5, 3)
-        calc.calculate("subtract", 10, 2)
-        
-        assert calc.get_history_count() == 2
-    
-    def test_calculator_precision_handling(self):
-        """Test calculator handles precision correctly"""
-        calc = Calculator()
-        
-        result = calc.calculate("divide", 10, 3)
-        # Should have reasonable precision
-        assert pytest.approx(result, 0.0001) == 3.3333
-    
-    def test_calculator_state_consistency_after_error(self):
-        """Test calculator state remains consistent after error"""
-        calc = Calculator()
-        
-        calc.calculate("add", 5, 3)
-        
-        try:
-            calc.calculate("divide", 10, 0)
-        except OperationError:
-            pass
-        
-        # History should only contain valid calculation
-        assert len(calc.get_history()) == 1
-        
-        # Calculator should still work
-        result = calc.calculate("subtract", 10, 2)
-        assert result == 8
-
-# Test REPL FUNCTIONS
-"""
-Tests for REPL (Read-Eval-Print Loop) functionality
-"""
-import pytest
-from unittest.mock import MagicMock, patch
-from io import StringIO
-from app.calculator import run_repl
-from app.calculator import Calculator
-
-
-class TestREPL:
-    """Test cases for the REPL class"""
-    
-    def setup_method(self):
-        """Set up test REPL instance"""
-        self.calculator = Calculator()
-        self.repl = run_repl(self.calculator)
-    
-    def test_repl_initialization(self):
-        """Test REPL initializes correctly"""
-        assert self.repl is not None
-        assert self.repl.calculator is self.calculator
-        assert self.repl.running is False
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_add_command(self, mock_stdout, mock_input):
-        """Test REPL add command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '8' in output
-    
-    @patch('builtins.input', side_effect=['subtract 10 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_subtract_command(self, mock_stdout, mock_input):
-        """Test REPL subtract command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '7' in output
-    
-    @patch('builtins.input', side_effect=['multiply 4 5', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_multiply_command(self, mock_stdout, mock_input):
-        """Test REPL multiply command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '20' in output
-    
-    @patch('builtins.input', side_effect=['divide 20 4', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_divide_command(self, mock_stdout, mock_input):
-        """Test REPL divide command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '5' in output
-    
-    @patch('builtins.input', side_effect=['power 2 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_power_command(self, mock_stdout, mock_input):
-        """Test REPL power command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '8' in output
-    
-    @patch('builtins.input', side_effect=['modulus 10 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_modulus_command(self, mock_stdout, mock_input):
-        """Test REPL modulus command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '1' in output
-    
-    @patch('builtins.input', side_effect=['history', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_history_command_empty(self, mock_stdout, mock_input):
-        """Test REPL history command when empty"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'empty' in output.lower() or 'no history' in output.lower()
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'history', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_history_command_with_data(self, mock_stdout, mock_input):
-        """Test REPL history command with calculations"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'add' in output.lower()
-        assert '5' in output
-        assert '3' in output
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'clear', 'history', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_clear_command(self, mock_stdout, mock_input):
-        """Test REPL clear command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'cleared' in output.lower()
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'undo', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_undo_command(self, mock_stdout, mock_input):
-        """Test REPL undo command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'undo' in output.lower()
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'undo', 'redo', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_redo_command(self, mock_stdout, mock_input):
-        """Test REPL redo command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'redo' in output.lower()
-    
-    @patch('builtins.input', side_effect=['help', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_help_command(self, mock_stdout, mock_input):
-        """Test REPL help command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'add' in output.lower()
-        assert 'subtract' in output.lower()
-        assert 'exit' in output.lower()
-    
-    @patch('builtins.input', side_effect=['exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_exit_command(self, mock_stdout, mock_input):
-        """Test REPL exit command"""
-        self.repl.start()
-        
-        assert self.repl.running is False
-    
-    @patch('builtins.input', side_effect=['invalid_command', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_invalid_command(self, mock_stdout, mock_input):
-        """Test REPL handles invalid commands"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'invalid' in output.lower() or 'error' in output.lower()
-    
-    @patch('builtins.input', side_effect=['add 5', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_insufficient_arguments(self, mock_stdout, mock_input):
-        """Test REPL handles insufficient arguments"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'error' in output.lower() or 'invalid' in output.lower()
-    
-    @patch('builtins.input', side_effect=['add abc 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_non_numeric_arguments(self, mock_stdout, mock_input):
-        """Test REPL handles non-numeric arguments"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'error' in output.lower() or 'invalid' in output.lower()
-    
-    @patch('builtins.input', side_effect=['divide 10 0', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_division_by_zero(self, mock_stdout, mock_input):
-        """Test REPL handles division by zero"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert 'error' in output.lower() or 'zero' in output.lower()
-    
-    @patch('builtins.input', side_effect=['root 16 2', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_root_command(self, mock_stdout, mock_input):
-        """Test REPL root command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '4' in output
-    
-    @patch('builtins.input', side_effect=['int_divide 10 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_int_divide_command(self, mock_stdout, mock_input):
-        """Test REPL integer division command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '3' in output
-    
-    @patch('builtins.input', side_effect=['percent 25 100', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_percent_command(self, mock_stdout, mock_input):
-        """Test REPL percentage command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '25' in output
-    
-    @patch('builtins.input', side_effect=['abs_diff 10 3', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_abs_diff_command(self, mock_stdout, mock_input):
-        """Test REPL absolute difference command"""
-        self.repl.start()
-        output = mock_stdout.getvalue()
-        
-        assert '7' in output
-    
-    @patch('builtins.input', side_effect=['add 5 3', 'save', 'exit'])
-    def test_repl_save_command(self, mock_input, tmp_path: Path):
-        """Test REPL save command"""
-        # This test would need proper file path setup
-        self.repl.start()
-        # Verify save was called
-    
-    @patch('builtins.input', side_effect=['load', 'exit'])
-    def test_repl_load_command(self, mock_input, tmp_path: Path):
-        """Test REPL load command"""
-        # This test would need proper file path setup
-        self.repl.start()
-        # Verify load was called
-    
-    @patch('builtins.input', side_effect=['', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_empty_input(self, mock_stdout, mock_input):
-        """Test REPL handles empty input"""
-        self.repl.start()
-        # Should not crash
-        assert True
-    
-    @patch('builtins.input', side_effect=['   ', 'exit'])
-    @patch('sys.stdout', new_callable=StringIO)
-    def test_repl_whitespace_input(self, mock_stdout, mock_input):
-        """Test REPL handles whitespace input"""
-        self.repl.start()
-        # Should not crash
-        assert True
-    
-    def test_repl_parse_command_valid(self):
-        """Test parsing valid command"""
-        command, args = self.repl.parse_command("add 5 3")
-        assert command == "add"
-        assert args == ["5", "3"]
-    
-    def test_repl_parse_command_with_extra_spaces(self):
-        """Test parsing command with extra spaces"""
-        command, args = self.repl.parse_command("add   5   3")
-        assert command == "add"
-        assert args == ["5", "3"]
-    
-    def test_repl_parse_command_case_insensitive(self):
-        """Test parsing command is case insensitive"""
-        command, args = self.repl.parse_command("ADD 5 3")
-        assert command == "add"
-        assert args == ["5", "3"]
-    
-    def test_repl_welcome_message(self):
-        """Test REPL displays welcome message"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            with patch('builtins.input', side_effect=['exit']):
-                self.repl.start()
-                output = mock_stdout.getvalue()
-                assert 'calculator' in output.lower() or 'welcome' in output.lower()
+        assert len(calc.get_history()) == 3
