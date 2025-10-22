@@ -113,7 +113,7 @@ class TestOperationsParameterized:
     ])
     def test_int_divide_parameterized(self, a, b, expected):
         """Parameterized test for integer division"""
-        op = IntegerDivisionOperation()
+        op = IntegerDivideOperation()
         result = op.execute(a, b)
         assert result == expected
     
