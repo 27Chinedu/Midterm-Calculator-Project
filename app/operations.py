@@ -85,6 +85,17 @@ class RootOperation(Operation):
     def get_symbol(self) -> str:
         return "√"
 
+class ModulusOperation(Operation):
+    """Modulus operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        if b == 0:
+            raise DivisionByZeroError("Cannot calculate modulus with zero divisor")
+        return a % b
+    
+    def get_symbol(self) -> str:
+        return "%"
+
 
 
 
