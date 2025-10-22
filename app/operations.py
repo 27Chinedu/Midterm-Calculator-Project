@@ -46,6 +46,16 @@ class MultiplyOperation(Operation):
     def get_symbol(self) -> str:
         return "*"
 
+class DivideOperation(Operation):
+    """Division operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        if b == 0:
+            raise DivisionByZeroError("Cannot divide by zero")
+        return a / b
+    
+    def get_symbol(self) -> str:
+        return "/"
 
 
 
