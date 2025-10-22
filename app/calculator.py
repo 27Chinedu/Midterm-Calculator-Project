@@ -195,7 +195,7 @@ class Calculator:
     def run_repl(self):
         """Run the calculator REPL (Read-Eval-Print Loop)."""
         print("\n" + "="*50)
-        print("Welcome to Chinedu's Calculator!")
+        print("Welcome to Chinedu's Brand New Calculator!")
         print("="*50)
         print("\nType 'help' for available commands or 'exit' to quit.\n")
         
