@@ -118,5 +118,14 @@ class PercentageOperation(Operation):
     def get_symbol(self) -> str:
         return "%%"
 
+class AbsoluteDifferenceOperation(Operation):
+    """Absolute difference operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        return abs(a - b)
+    
+    def get_symbol(self) -> str:
+        return "|a-b|"
+
 
 
