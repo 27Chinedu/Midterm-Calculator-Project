@@ -207,7 +207,7 @@ class TestCalculatorComprehensive:
         
         assert observer not in calc.observers
     
-    def test_calculator_notify_observers(self, tmp_path):
+    def test_calculator_notify_observers(self, tmp_path: Path):
         """Test calculator notifies observers on calculation"""
         calc = Calculator()
         log_file = tmp_path / "test.log"
@@ -218,7 +218,7 @@ class TestCalculatorComprehensive:
         
         assert log_file.exists()
     
-    def test_calculator_save_history(self, tmp_path):
+    def test_calculator_save_history(self, tmp_path: Path):
         """Test saving calculation history to file"""
         calc = Calculator()
         history_file = tmp_path / "history.csv"
@@ -232,7 +232,7 @@ class TestCalculatorComprehensive:
         df = pd.read_csv(history_file)
         assert len(df) == 2
     
-    def test_calculator_load_history(self, tmp_path):
+    def test_calculator_load_history(self, tmp_path: Path):
         """Test loading calculation history from file"""
         calc = Calculator()
         history_file = tmp_path / "history.csv"
@@ -248,7 +248,7 @@ class TestCalculatorComprehensive:
         
         assert len(calc2.get_history()) == 2
     
-    def test_calculator_load_nonexistent_file(self, tmp_path):
+    def test_calculator_load_nonexistent_file(self, tmp_path: Path):
         """Test loading from nonexistent file raises error"""
         calc = Calculator()
         history_file = tmp_path / "nonexistent.csv"
@@ -256,7 +256,7 @@ class TestCalculatorComprehensive:
         with pytest.raises(FileNotFoundError):
             calc.load_history(history_file)
     
-    def test_calculator_save_empty_history(self, tmp_path):
+    def test_calculator_save_empty_history(self, tmp_path: Path):
         """Test saving empty history creates empty file"""
         calc = Calculator()
         history_file = tmp_path / "history.csv"
@@ -372,3 +372,276 @@ class TestCalculatorComprehensive:
         # Calculator should still work
         result = calc.calculate("subtract", 10, 2)
         assert result == 8
+
+# Test REPL FUNCTIONS
+"""
+Tests for REPL (Read-Eval-Print Loop) functionality
+"""
+import pytest
+from unittest.mock import MagicMock, patch
+from io import StringIO
+from app.calculator import run_repl
+from app.calculator import Calculator
+
+
+class TestREPL:
+    """Test cases for the REPL class"""
+    
+    def setup_method(self):
+        """Set up test REPL instance"""
+        self.calculator = Calculator()
+        self.repl = run_repl(self.calculator)
+    
+    def test_repl_initialization(self):
+        """Test REPL initializes correctly"""
+        assert self.repl is not None
+        assert self.repl.calculator is self.calculator
+        assert self.repl.running is False
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_add_command(self, mock_stdout, mock_input):
+        """Test REPL add command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '8' in output
+    
+    @patch('builtins.input', side_effect=['subtract 10 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_subtract_command(self, mock_stdout, mock_input):
+        """Test REPL subtract command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '7' in output
+    
+    @patch('builtins.input', side_effect=['multiply 4 5', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_multiply_command(self, mock_stdout, mock_input):
+        """Test REPL multiply command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '20' in output
+    
+    @patch('builtins.input', side_effect=['divide 20 4', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_divide_command(self, mock_stdout, mock_input):
+        """Test REPL divide command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '5' in output
+    
+    @patch('builtins.input', side_effect=['power 2 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_power_command(self, mock_stdout, mock_input):
+        """Test REPL power command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '8' in output
+    
+    @patch('builtins.input', side_effect=['modulus 10 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_modulus_command(self, mock_stdout, mock_input):
+        """Test REPL modulus command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '1' in output
+    
+    @patch('builtins.input', side_effect=['history', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_history_command_empty(self, mock_stdout, mock_input):
+        """Test REPL history command when empty"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'empty' in output.lower() or 'no history' in output.lower()
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'history', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_history_command_with_data(self, mock_stdout, mock_input):
+        """Test REPL history command with calculations"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'add' in output.lower()
+        assert '5' in output
+        assert '3' in output
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'clear', 'history', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_clear_command(self, mock_stdout, mock_input):
+        """Test REPL clear command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'cleared' in output.lower()
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'undo', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_undo_command(self, mock_stdout, mock_input):
+        """Test REPL undo command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'undo' in output.lower()
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'undo', 'redo', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_redo_command(self, mock_stdout, mock_input):
+        """Test REPL redo command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'redo' in output.lower()
+    
+    @patch('builtins.input', side_effect=['help', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_help_command(self, mock_stdout, mock_input):
+        """Test REPL help command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'add' in output.lower()
+        assert 'subtract' in output.lower()
+        assert 'exit' in output.lower()
+    
+    @patch('builtins.input', side_effect=['exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_exit_command(self, mock_stdout, mock_input):
+        """Test REPL exit command"""
+        self.repl.start()
+        
+        assert self.repl.running is False
+    
+    @patch('builtins.input', side_effect=['invalid_command', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_invalid_command(self, mock_stdout, mock_input):
+        """Test REPL handles invalid commands"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'invalid' in output.lower() or 'error' in output.lower()
+    
+    @patch('builtins.input', side_effect=['add 5', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_insufficient_arguments(self, mock_stdout, mock_input):
+        """Test REPL handles insufficient arguments"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'error' in output.lower() or 'invalid' in output.lower()
+    
+    @patch('builtins.input', side_effect=['add abc 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_non_numeric_arguments(self, mock_stdout, mock_input):
+        """Test REPL handles non-numeric arguments"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'error' in output.lower() or 'invalid' in output.lower()
+    
+    @patch('builtins.input', side_effect=['divide 10 0', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_division_by_zero(self, mock_stdout, mock_input):
+        """Test REPL handles division by zero"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert 'error' in output.lower() or 'zero' in output.lower()
+    
+    @patch('builtins.input', side_effect=['root 16 2', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_root_command(self, mock_stdout, mock_input):
+        """Test REPL root command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '4' in output
+    
+    @patch('builtins.input', side_effect=['int_divide 10 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_int_divide_command(self, mock_stdout, mock_input):
+        """Test REPL integer division command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '3' in output
+    
+    @patch('builtins.input', side_effect=['percent 25 100', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_percent_command(self, mock_stdout, mock_input):
+        """Test REPL percentage command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '25' in output
+    
+    @patch('builtins.input', side_effect=['abs_diff 10 3', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_abs_diff_command(self, mock_stdout, mock_input):
+        """Test REPL absolute difference command"""
+        self.repl.start()
+        output = mock_stdout.getvalue()
+        
+        assert '7' in output
+    
+    @patch('builtins.input', side_effect=['add 5 3', 'save', 'exit'])
+    def test_repl_save_command(self, mock_input, tmp_path: Path):
+        """Test REPL save command"""
+        # This test would need proper file path setup
+        self.repl.start()
+        # Verify save was called
+    
+    @patch('builtins.input', side_effect=['load', 'exit'])
+    def test_repl_load_command(self, mock_input, tmp_path: Path):
+        """Test REPL load command"""
+        # This test would need proper file path setup
+        self.repl.start()
+        # Verify load was called
+    
+    @patch('builtins.input', side_effect=['', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_empty_input(self, mock_stdout, mock_input):
+        """Test REPL handles empty input"""
+        self.repl.start()
+        # Should not crash
+        assert True
+    
+    @patch('builtins.input', side_effect=['   ', 'exit'])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_repl_whitespace_input(self, mock_stdout, mock_input):
+        """Test REPL handles whitespace input"""
+        self.repl.start()
+        # Should not crash
+        assert True
+    
+    def test_repl_parse_command_valid(self):
+        """Test parsing valid command"""
+        command, args = self.repl.parse_command("add 5 3")
+        assert command == "add"
+        assert args == ["5", "3"]
+    
+    def test_repl_parse_command_with_extra_spaces(self):
+        """Test parsing command with extra spaces"""
+        command, args = self.repl.parse_command("add   5   3")
+        assert command == "add"
+        assert args == ["5", "3"]
+    
+    def test_repl_parse_command_case_insensitive(self):
+        """Test parsing command is case insensitive"""
+        command, args = self.repl.parse_command("ADD 5 3")
+        assert command == "add"
+        assert args == ["5", "3"]
+    
+    def test_repl_welcome_message(self):
+        """Test REPL displays welcome message"""
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            with patch('builtins.input', side_effect=['exit']):
+                self.repl.start()
+                output = mock_stdout.getvalue()
+                assert 'calculator' in output.lower() or 'welcome' in output.lower()
