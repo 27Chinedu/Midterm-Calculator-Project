@@ -96,6 +96,16 @@ class ModulusOperation(Operation):
     def get_symbol(self) -> str:
         return "%"
 
+class IntegerDivideOperation(Operation):
+    """Integer division operation."""
+    
+    def execute(self, a: float, b: float) -> float:
+        if b == 0:
+            raise DivisionByZeroError("Cannot divide by zero")
+        return float(int(a // b))
+    
+    def get_symbol(self) -> str:
+        return "//"
 
 
 
