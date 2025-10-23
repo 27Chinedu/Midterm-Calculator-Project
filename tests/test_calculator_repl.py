@@ -228,7 +228,7 @@ class TestHandleHistory:
         mock_calc1.operation.symbol = "+"
         mock_calc1.operand1 = 5
         mock_calc1.operand2 = 3
-        mock_calc1.get_result.return_value = 8
+        mock_calc1.result = 8
         
         mock_calc2 = Mock(spec=Calculation)
         mock_calc2.operation = Mock(spec=Operation)
@@ -236,7 +236,7 @@ class TestHandleHistory:
         mock_calc2.operation.symbol = "*"
         mock_calc2.operand1 = 4
         mock_calc2.operand2 = 2
-        mock_calc2.get_result.return_value = 8
+        mock_calc2.result = 8
         
         calc.get_history.return_value = [mock_calc1, mock_calc2]
         repl = REPL(calc)
