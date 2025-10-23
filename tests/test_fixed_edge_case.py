@@ -1,5 +1,5 @@
 """
-Fixed edge case tests
+Fixed edge case tests - CORRECTED
 """
 import pytest
 from unittest.mock import Mock, patch
@@ -83,18 +83,19 @@ class TestCalculatorStateManagementFixed:
     """Fixed calculator state management tests"""
     
     def test_history_maintains_order_after_undo_redo(self):
-        """Test history maintains order after undo/redo"""
+        """Test history maintains order after undo/redo - FIXED"""
         calc = Calculator()
         
         with patch('app.calculator.OperationFactory') as mock_factory:
             mock_operation = Mock()
-            mock_operation.execute.return_value = 8.0
+            # Return different values for each call
+            mock_operation.execute.side_effect = [8.0, 12.0, 18.0]
             mock_operation.get_symbol.return_value = "+"
             mock_factory.create_operation.return_value = mock_operation
             
             # Perform calculations
-            calc.calculate("add", 5, 3)
-            calc.calculate("add", 10, 2)
+            calc.calculate("add", 5, 3)  # 8.0
+            calc.calculate("add", 10, 2)  # 12.0
             
             history_before = calc.get_history()
             assert len(history_before) == 2
@@ -138,17 +139,18 @@ class TestHistoryManagementFixed:
     """Fixed history management tests"""
     
     def test_history_after_clear_and_new_calculations(self):
-        """Test history after clear and new calculations"""
+        """Test history after clear and new calculations - FIXED"""
         calc = Calculator()
         
         with patch('app.calculator.OperationFactory') as mock_factory:
             mock_operation = Mock()
-            mock_operation.execute.return_value = 8.0
+            # Return different values for each call
+            mock_operation.execute.side_effect = [8.0, 12.0]
             mock_operation.get_symbol.return_value = "+"
             mock_factory.create_operation.return_value = mock_operation
             
             # Add calculation
-            calc.calculate("add", 5, 3)
+            calc.calculate("add", 5, 3)  # 8.0
             assert len(calc.get_history()) == 1
             assert calc.get_history()[0].result == 8.0  # Use .result directly
             
@@ -157,7 +159,7 @@ class TestHistoryManagementFixed:
             assert len(calc.get_history()) == 0
             
             # Add new calculation
-            calc.calculate("add", 10, 2)
+            calc.calculate("add", 10, 2)  # 12.0
             assert len(calc.get_history()) == 1
             assert calc.get_history()[0].result == 12.0  # Use .result directly
     
@@ -165,7 +167,7 @@ class TestHistoryManagementFixed:
         """Test getting recent calculations"""
         calc = Calculator()
         
-        # HistoryManager doesn't have get_last_calculation, so test get_recent
+        # HistoryManager has get_recent method
         with patch('app.calculator.OperationFactory') as mock_factory:
             mock_operation = Mock()
             mock_operation.execute.return_value = 8.0
@@ -174,7 +176,7 @@ class TestHistoryManagementFixed:
             
             calc.calculate("add", 5, 3)
             
-            # Get recent calculations
+            # Get recent calculations through history_manager
             history = calc.get_history()
             if history:
                 recent = history[-1:]  # Get most recent
@@ -236,10 +238,11 @@ class TestRobustnessFixed:
     
     def test_observer_error_doesnt_break_calculator(self):
         """Test observer error doesn't break calculator"""
+        from app.calculator import CalculatorObserver
         calc = Calculator()
         
         # Create a mock observer that raises an exception
-        class FaultyObserver:
+        class FaultyObserver(CalculatorObserver):
             def update(self, calculation):
                 raise Exception("Observer failed")
         
