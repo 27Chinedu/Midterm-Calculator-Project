@@ -136,7 +136,7 @@ class REPL:
         for i, calc in enumerate(history, 1):
             op_name = calc.operation.name
             op_symbol = calc.operation.symbol
-            result = calc.get_result()
+            result = calc.result
             
             print(f"{i}. {calc.operand1} {op_symbol} {calc.operand2} = {result} ({op_name})")
         
