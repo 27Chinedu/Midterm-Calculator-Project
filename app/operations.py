@@ -78,13 +78,27 @@ class RootOperation(Operation):
         try:
             if a < 0 and b % 2 == 0:
                 raise OperationError("Cannot calculate even root of negative number")
-            return a ** (1/b)
+            if b < 0:
+                raise OperationError("Cannot calculate root with negative degree")
+            
+            # Handle negative bases with odd roots properly
+            if a < 0 and b % 2 == 1:
+                # For odd roots of negative numbers, we can compute directly
+                result = -((-a) ** (1/b))
+            else:
+                result = a ** (1/b)
+            
+            # Check for complex results
+            if isinstance(result, complex):
+                raise OperationError("Result is complex number")
+                
+            return result
         except (OverflowError, ValueError) as e:
             raise OperationError(f"Root operation failed: {e}")
     
     def get_symbol(self) -> str:
         return "√"
-
+    
 class ModulusOperation(Operation):
     """Modulus operation."""
     
