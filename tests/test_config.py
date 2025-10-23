@@ -17,8 +17,11 @@ class TestCalculatorConfig:
         
         assert config.log_dir is not None
         assert config.history_dir is not None
-        assert config.max_history_size > 0
-        assert config.precision > 0
+        assert config.max_history_size == 100
+        assert config.precision == 10
+        assert config.max_input_value == 1e10
+        assert config.auto_save is True
+        assert config.default_encoding == 'utf-8'
     
     def test_config_load_from_env(self, monkeypatch):
         """Test config loads values from environment variables"""

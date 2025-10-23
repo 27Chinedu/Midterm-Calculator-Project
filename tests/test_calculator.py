@@ -494,7 +494,6 @@ class TestCalculatorHistory:
         # Should be able to undo clear
         assert calc.memento_caretaker.can_undo()
 
-
 class TestCalculatorFilePersistence:
     """Tests for save/load history"""
     
@@ -503,6 +502,17 @@ class TestCalculatorFilePersistence:
         filepath = str(tmp_path / "history.csv")
         
         calc = Calculator()
+        
+        # Add some calculations to history first
+        with patch('app.calculator.OperationFactory') as mock_factory:
+            mock_operation = Mock()
+            mock_operation.execute.return_value = 8.0
+            mock_operation.get_symbol.return_value = "+"
+            mock_factory.create_operation.return_value = mock_operation
+            
+            calc.calculate("add", 5.0, 3.0)
+        
+        # Save history
         calc.save_history(filepath)
         
         # File should exist
@@ -518,11 +528,16 @@ class TestCalculatorFilePersistence:
     def test_save_history_calls_history_manager(self):
         """Test save_history delegates to history manager"""
         calc = Calculator()
-        calc.history_manager.save_to_csv = Mock()
         
-        calc.save_history("test.csv")
-        
-        calc.history_manager.save_to_csv.assert_called_once()
+        # Mock the history manager's save_to_csv method
+        with patch.object(calc.history_manager, 'save_to_csv') as mock_save:
+            calc.save_history("test.csv")
+            
+            # Verify the method was called with a Path object
+            mock_save.assert_called_once()
+            call_arg = mock_save.call_args[0][0]
+            assert isinstance(call_arg, Path)
+            assert call_arg.name == "test.csv"
     
     def test_load_history_with_filepath(self, tmp_path):
         """Test loading history with specified filepath"""
@@ -532,55 +547,118 @@ class TestCalculatorFilePersistence:
         Path(filepath).touch()
         
         calc = Calculator()
-        calc.history_manager.load_from_csv = Mock()
         
-        calc.load_history(filepath)
-        
-        calc.history_manager.load_from_csv.assert_called_once()
+        # Mock the history manager's load_from_csv method
+        with patch.object(calc.history_manager, 'load_from_csv') as mock_load:
+            calc.load_history(filepath)
+            
+            # Verify the method was called with a Path object
+            mock_load.assert_called_once()
+            call_arg = mock_load.call_args[0][0]
+            assert isinstance(call_arg, Path)
+            assert call_arg.name == "history.csv"
     
     def test_load_history_without_filepath(self):
         """Test loading history with default filepath"""
         calc = Calculator()
-        calc.history_manager.load_from_csv = Mock()
         
-        calc.load_history(None)
-        
-        calc.history_manager.load_from_csv.assert_called_once()
+        # Mock the history manager's load_from_csv method
+        with patch.object(calc.history_manager, 'load_from_csv') as mock_load:
+            calc.load_history(None)
+            
+            # Verify the method was called with None
+            mock_load.assert_called_once_with(None)
     
     def test_load_history_saves_state(self):
         """Test load_history saves state after loading"""
         calc = Calculator()
-        calc.history_manager.load_from_csv = Mock()
-        calc._save_state = Mock()
         
-        calc.load_history("test.csv")
-        
-        calc._save_state.assert_called()
+        # Mock both the history manager and _save_state
+        with patch.object(calc.history_manager, 'load_from_csv') as mock_load, \
+             patch.object(calc, '_save_state') as mock_save:
+            
+            calc.load_history("test.csv")
+            
+            # Should call load_from_csv and then save_state
+            mock_load.assert_called_once()
+            mock_save.assert_called_once()
     
-    def test_save_history_converts_string_to_path(self, tmp_path):
+    def test_save_history_converts_string_to_path(self):
         """Test save_history converts string to Path"""
-        filepath = str(tmp_path / "history.csv")
-        
         calc = Calculator()
-        calc.history_manager.save_to_csv = Mock()
         
-        calc.save_history(filepath)
-        
-        # Should be called with Path object
-        call_args = calc.history_manager.save_to_csv.call_args[0]
-        assert isinstance(call_args[0], Path)
+        with patch.object(calc.history_manager, 'save_to_csv') as mock_save:
+            calc.save_history("test.csv")
+            
+            # Should be called with Path object
+            call_arg = mock_save.call_args[0][0]
+            assert isinstance(call_arg, Path)
+            assert call_arg.name == "test.csv"
     
     def test_load_history_converts_string_to_path(self):
         """Test load_history converts string to Path"""
         calc = Calculator()
-        calc.history_manager.load_from_csv = Mock()
         
-        calc.load_history("test.csv")
+        with patch.object(calc.history_manager, 'load_from_csv') as mock_load:
+            calc.load_history("test.csv")
+            
+            # Should be called with Path object
+            call_arg = mock_load.call_args[0][0]
+            assert isinstance(call_arg, Path)
+            assert call_arg.name == "test.csv"
+    
+    def test_save_history_creates_actual_file(self, tmp_path):
+        """Test that save_history actually creates a file with content"""
+        filepath = str(tmp_path / "actual_history.csv")
         
-        # Should be called with Path object
-        call_args = calc.history_manager.load_from_csv.call_args[0]
-        assert isinstance(call_args[0], Path)
-
+        calc = Calculator()
+        
+        # Add a calculation to have something to save
+        with patch('app.calculator.OperationFactory') as mock_factory:
+            mock_operation = Mock()
+            mock_operation.execute.return_value = 15.0
+            mock_operation.get_symbol.return_value = "+"
+            mock_factory.create_operation.return_value = mock_operation
+            
+            calc.calculate("add", 10.0, 5.0)
+        
+        # Save to file
+        calc.save_history(filepath)
+        
+        # Verify file was created and has content
+        assert Path(filepath).exists()
+        
+        # Read the file to verify it has content
+        with open(filepath, 'r') as f:
+            content = f.read()
+            assert len(content) > 0
+            # Should contain CSV headers or data
+            assert 'operation' in content or 'operand1' in content
+    
+    def test_load_history_from_actual_file(self, tmp_path):
+        """Test loading history from an actual file"""
+        filepath = str(tmp_path / "load_history.csv")
+        
+        # Create a valid CSV file with calculation data
+        csv_content = """operation,operand1,operand2,result,timestamp
+add,5.0,3.0,8.0,2024-01-01T10:00:00
+subtract,10.0,4.0,6.0,2024-01-01T10:01:00"""
+        
+        with open(filepath, 'w') as f:
+            f.write(csv_content)
+        
+        calc = Calculator()
+        
+        # Load from the file
+        calc.load_history(filepath)
+        
+        # Verify history was loaded
+        history = calc.get_history()
+        assert len(history) == 2
+        assert history[0].operation == "add"
+        assert history[0].result == 8.0
+        assert history[1].operation == "subtract"
+        assert history[1].result == 6.
 
 class TestCalculatorIntegration:
     """Integration tests for Calculator"""
