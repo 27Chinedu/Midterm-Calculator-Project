@@ -12,7 +12,7 @@ A sophisticated, feature-rich calculator application built with Python that demo
 - [Design Patterns](#design-patterns)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Project Structure](#project-structure)
-- [Contributing](#contributing)
+
 
 ## Features
 
@@ -522,7 +522,7 @@ mypy app
 pytest tests/ --cov=app --cov-report=term-missing
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 calculator-app/
@@ -562,27 +562,6 @@ calculator-app/
 ├── README.md                      # This file
 └── requirements.txt               # Python dependencies
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make your changes**
-4. **Write/update tests**: Ensure 90% coverage is maintained
-5. **Run tests**: `pytest tests/ --cov=app`
-6. **Commit changes**: `git commit -m 'Add amazing feature'`
-7. **Push to branch**: `git push origin feature/amazing-feature`
-8. **Open Pull Request**
-
-### Code Style
-
-- Follow PEP 8 guidelines
-- Use type hints where appropriate
-- Write docstrings for all public methods
-- Keep functions focused and testable
-- Maintain test coverage at 90% minimum
 
 ### Testing Requirements
 
