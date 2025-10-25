@@ -52,8 +52,8 @@ A sophisticated, feature-rich calculator application built with Python that demo
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/calculator-app.git
-cd calculator-app
+git clone https://github.com/27Chinedu/Midterm-Calculator.git
+cd Midterm-Calculator
 ```
 
 ### Step 2: Create Virtual Environment
