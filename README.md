@@ -45,7 +45,7 @@ A sophisticated, feature-rich calculator application built with Python that demo
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.13 or higher
 - pip (Python package manager)
 - git (for cloning the repository)
 
