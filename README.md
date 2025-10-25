@@ -198,7 +198,7 @@ Result: 3.0
 Result: 25.0
 
 # Absolute Difference
-> abs_diff 10 3
+> abs_diff 3 10
 Result: 7.0
 ```
 
